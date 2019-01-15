@@ -1,8 +1,10 @@
 import bindAll from 'lodash.bindall';
 import React from 'react';
 import PropTypes from 'prop-types';
+import queryString from 'query-string';
 import {connect} from 'react-redux';
 import VM from 'scratch-vm';
+import xhr from 'xhr';
 
 import log from '../lib/log';
 import storage from '../lib/storage';
@@ -20,6 +22,7 @@ import {
     createProject,
     doneCreatingProject,
     doneUpdatingProject,
+    getIsAnyCreatingNewState,
     getIsCreatingCopy,
     getIsCreatingNew,
     getIsManualUpdating,
@@ -44,8 +47,16 @@ const ProjectSaverHOC = function (WrappedComponent) {
         constructor (props) {
             super(props);
             bindAll(this, [
+                'leavePageConfirm',
                 'tryToAutoSave'
             ]);
+        }
+        componentWillMount () {
+            if (typeof window === 'object') {
+                // Note: it might be better to use a listener instead of assigning onbeforeunload;
+                // but then it'd be hard to turn this listening off in our tests
+                window.onbeforeunload = e => this.leavePageConfirm(e);
+            }
         }
         componentDidUpdate (prevProps) {
             if (this.props.projectChanged && !prevProps.projectChanged) {
@@ -61,7 +72,10 @@ const ProjectSaverHOC = function (WrappedComponent) {
                 this.createCopyToStorage();
             }
             if (this.props.isRemixing && !prevProps.isRemixing) {
+                this.props.onRemixing(true);
                 this.createRemixToStorage();
+            } else if (!this.props.isRemixing && prevProps.isRemixing) {
+                this.props.onRemixing(false);
             }
 
             // see if we should "create" the current project on the server
@@ -86,6 +100,18 @@ const ProjectSaverHOC = function (WrappedComponent) {
         }
         componentWillUnmount () {
             this.clearAutoSaveTimeout();
+            // Cant unset the beforeunload because it might no longer belong to this component
+            // i.e. if another of this component has been mounted before this one gets unmounted
+            // which happens when going from project to editor view.
+            // window.onbeforeunload = undefined; // eslint-disable-line no-undefined
+        }
+        leavePageConfirm (e) {
+            if (this.props.projectChanged) {
+                // both methods of returning a value may be necessary for browser compatibility
+                (e || window.event).returnValue = true;
+                return true;
+            }
+            return; // Returning undefined prevents the prompt from coming up
         }
         clearAutoSaveTimeout () {
             if (this.props.autoSaveTimeoutId !== null) {
@@ -96,7 +122,7 @@ const ProjectSaverHOC = function (WrappedComponent) {
         scheduleAutoSave () {
             if (this.props.isShowingSaveable && this.props.autoSaveTimeoutId === null) {
                 const timeoutId = setTimeout(this.tryToAutoSave,
-                    this.props.autosaveIntervalSecs * 1000);
+                    this.props.autoSaveIntervalSecs * 1000);
                 this.props.setAutoSaveTimeoutId(timeoutId);
             }
         }
@@ -125,11 +151,9 @@ const ProjectSaverHOC = function (WrappedComponent) {
                 });
         }
         createNewProjectToStorage () {
-            this.props.onShowCreatingAlert();
             return this.storeProject(null)
                 .then(response => {
                     this.props.onCreatedProject(response.id.toString(), this.props.loadingState);
-                    this.props.onShowCreateSuccessAlert();
                 })
                 .catch(err => {
                     this.props.onShowAlert('creatingError');
@@ -137,7 +161,7 @@ const ProjectSaverHOC = function (WrappedComponent) {
                 });
         }
         createCopyToStorage () {
-            this.props.onShowCreatingAlert();
+            this.props.onShowCreatingCopyAlert();
             return this.storeProject(null, {
                 original_id: this.props.reduxProjectId,
                 is_copy: 1,
@@ -145,7 +169,7 @@ const ProjectSaverHOC = function (WrappedComponent) {
             })
                 .then(response => {
                     this.props.onCreatedProject(response.id.toString(), this.props.loadingState);
-                    this.props.onShowCreateSuccessAlert();
+                    this.props.onShowCopySuccessAlert();
                 })
                 .catch(err => {
                     this.props.onShowAlert('creatingError');
@@ -153,7 +177,7 @@ const ProjectSaverHOC = function (WrappedComponent) {
                 });
         }
         createRemixToStorage () {
-            this.props.onShowCreatingAlert();
+            this.props.onShowCreatingRemixAlert();
             return this.storeProject(null, {
                 original_id: this.props.reduxProjectId,
                 is_remix: 1,
@@ -161,7 +185,7 @@ const ProjectSaverHOC = function (WrappedComponent) {
             })
                 .then(response => {
                     this.props.onCreatedProject(response.id.toString(), this.props.loadingState);
-                    this.props.onShowCreateSuccessAlert();
+                    this.props.onShowRemixSuccessAlert();
                 })
                 .catch(err => {
                     this.props.onShowAlert('creatingError');
@@ -177,6 +201,13 @@ const ProjectSaverHOC = function (WrappedComponent) {
         storeProject (projectId, requestParams) {
             requestParams = requestParams || {};
             this.clearAutoSaveTimeout();
+            // Serialize VM state now before embarking on
+            // the asynchronous journey of storing assets to
+            // the server. This ensures that assets don't update
+            // while in the process of saving a project (e.g. the
+            // serialized project refers to a newer asset than what
+            // we just finished saving).
+            const savedVMState = this.props.vm.toJSON();
             return Promise.all(this.props.vm.assets
                 .filter(asset => !asset.clean)
                 .map(
@@ -190,18 +221,45 @@ const ProjectSaverHOC = function (WrappedComponent) {
                     )
                 )
             ).then(() => {
-                const body = new FormData();
-                const sb3Json = new Blob([this.props.vm.toJSON()], {type: 'application/json'});
-                body.append('sb3_file', sb3Json, 'sb3_file');
-                for (const key in requestParams) {
-                    if (requestParams.hasOwnProperty(key)) body.append(key, requestParams[key]);
+                const opts = {
+                    body: savedVMState,
+                    // If we set json:true then the body is double-stringified, so don't
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    withCredentials: true
+                };
+                const creatingProject = projectId === null || typeof projectId === 'undefined';
+                let qs = queryString.stringify(requestParams);
+                if (qs) qs = `?${qs}`;
+                if (creatingProject) {
+                    Object.assign(opts, {
+                        method: 'post',
+                        url: `${storage.projectHost}/${qs}`
+                    });
+                } else {
+                    Object.assign(opts, {
+                        method: 'put',
+                        url: `${storage.projectHost}/${projectId}${qs}`
+                    });
                 }
-                return storage.store(
-                    storage.AssetType.Project,
-                    storage.DataFormat.JSON,
-                    body,
-                    projectId
-                );
+                return new Promise((resolve, reject) => {
+                    xhr(opts, (err, response) => {
+                        if (err) return reject(err);
+                        let body;
+                        try {
+                            // Since we didn't set json: true, we have to parse manually
+                            body = JSON.parse(response.body);
+                        } catch (e) {
+                            return reject(e);
+                        }
+                        body.id = projectId;
+                        if (creatingProject) {
+                            body.id = body['content-name'];
+                        }
+                        resolve(body);
+                    });
+                });
             })
                 .then(response => {
                     this.props.onSetProjectUnchanged();
@@ -224,10 +282,13 @@ const ProjectSaverHOC = function (WrappedComponent) {
          */
         storeProjectThumbnail (projectId) {
             try {
+                this.props.vm.postIOData('video', {forceTransparentPreview: true});
                 this.props.vm.renderer.requestSnapshot(dataURI => {
+                    this.props.vm.postIOData('video', {forceTransparentPreview: false});
                     this.props.onUpdateProjectThumbnail(
                         projectId, dataURItoBlob(dataURI));
                 });
+                this.props.vm.renderer.draw();
             } catch (e) {
                 log.error('Project thumbnail save error', e);
                 // This is intentionally fire/forget because a failure
@@ -238,10 +299,12 @@ const ProjectSaverHOC = function (WrappedComponent) {
         render () {
             const {
                 /* eslint-disable no-unused-vars */
-                autosaveIntervalSecs,
+                autoSaveTimeoutId,
+                autoSaveIntervalSecs,
                 isCreatingCopy,
                 isCreatingNew,
                 projectChanged,
+                isAnyCreatingNewState,
                 isManualUpdating,
                 isRemixing,
                 isShowingSaveable,
@@ -253,9 +316,13 @@ const ProjectSaverHOC = function (WrappedComponent) {
                 onCreatedProject,
                 onCreateProject,
                 onProjectError,
+                onRemixing,
+                onSetProjectUnchanged,
                 onShowAlert,
-                onShowCreateSuccessAlert,
-                onShowCreatingAlert,
+                onShowCopySuccessAlert,
+                onShowRemixSuccessAlert,
+                onShowCreatingCopyAlert,
+                onShowCreatingRemixAlert,
                 onShowSaveSuccessAlert,
                 onShowSavingAlert,
                 onUpdatedProject,
@@ -268,6 +335,7 @@ const ProjectSaverHOC = function (WrappedComponent) {
             } = this.props;
             return (
                 <WrappedComponent
+                    isCreating={isAnyCreatingNewState}
                     {...componentProps}
                 />
             );
@@ -278,6 +346,7 @@ const ProjectSaverHOC = function (WrappedComponent) {
         autoSaveTimeoutId: PropTypes.number,
         canCreateNew: PropTypes.bool,
         canSave: PropTypes.bool,
+        isAnyCreatingNewState: PropTypes.bool,
         isCreatingCopy: PropTypes.bool,
         isCreatingNew: PropTypes.bool,
         isManualUpdating: PropTypes.bool,
@@ -292,9 +361,12 @@ const ProjectSaverHOC = function (WrappedComponent) {
         onCreateProject: PropTypes.func,
         onCreatedProject: PropTypes.func,
         onProjectError: PropTypes.func,
+        onRemixing: PropTypes.func,
         onShowAlert: PropTypes.func,
-        onShowCreateSuccessAlert: PropTypes.func,
-        onShowCreatingAlert: PropTypes.func,
+        onShowCopySuccessAlert: PropTypes.func,
+        onShowCreatingCopyAlert: PropTypes.func,
+        onShowCreatingRemixAlert: PropTypes.func,
+        onShowRemixSuccessAlert: PropTypes.func,
         onShowSaveSuccessAlert: PropTypes.func,
         onShowSavingAlert: PropTypes.func,
         onUpdateProjectThumbnail: PropTypes.func,
@@ -305,13 +377,15 @@ const ProjectSaverHOC = function (WrappedComponent) {
         vm: PropTypes.instanceOf(VM).isRequired
     };
     ProjectSaverComponent.defaultProps = {
-        autosaveIntervalSecs: 120
+        autoSaveIntervalSecs: 120,
+        onRemixing: () => {}
     };
     const mapStateToProps = (state, ownProps) => {
         const loadingState = state.scratchGui.projectState.loadingState;
         const isShowingWithId = getIsShowingWithId(loadingState);
         return {
             autoSaveTimeoutId: state.scratchGui.timeout.autoSaveTimeoutId,
+            isAnyCreatingNewState: getIsAnyCreatingNewState(loadingState),
             isCreatingCopy: getIsCreatingCopy(loadingState),
             isCreatingNew: getIsCreatingNew(loadingState),
             isRemixing: getIsRemixing(loadingState),
@@ -334,8 +408,10 @@ const ProjectSaverHOC = function (WrappedComponent) {
         onProjectError: error => dispatch(projectError(error)),
         onSetProjectUnchanged: () => dispatch(setProjectUnchanged()),
         onShowAlert: alertType => dispatch(showStandardAlert(alertType)),
-        onShowCreateSuccessAlert: () => showAlertWithTimeout(dispatch, 'createSuccess'),
-        onShowCreatingAlert: () => showAlertWithTimeout(dispatch, 'creating'),
+        onShowCopySuccessAlert: () => showAlertWithTimeout(dispatch, 'createCopySuccess'),
+        onShowRemixSuccessAlert: () => showAlertWithTimeout(dispatch, 'createRemixSuccess'),
+        onShowCreatingCopyAlert: () => showAlertWithTimeout(dispatch, 'creatingCopy'),
+        onShowCreatingRemixAlert: () => showAlertWithTimeout(dispatch, 'creatingRemix'),
         onShowSaveSuccessAlert: () => showAlertWithTimeout(dispatch, 'saveSuccess'),
         onShowSavingAlert: () => showAlertWithTimeout(dispatch, 'saving'),
         onUpdatedProject: (projectId, loadingState) => dispatch(doneUpdatingProject(projectId, loadingState)),

@@ -17,6 +17,7 @@ import monitorLayoutReducer, {monitorLayoutInitialState} from './monitor-layout'
 import projectChangedReducer, {projectChangedInitialState} from './project-changed';
 import projectStateReducer, {projectStateInitialState} from './project-state';
 import projectTitleReducer, {projectTitleInitialState} from './project-title';
+import fontsLoadedReducer, {fontsLoadedInitialState} from './fonts-loaded';
 import restoreDeletionReducer, {restoreDeletionInitialState} from './restore-deletion';
 import stageSizeReducer, {stageSizeInitialState} from './stage-size';
 import targetReducer, {targetsInitialState} from './targets';
@@ -50,6 +51,7 @@ const guiInitialState = {
     projectChanged: projectChangedInitialState,
     projectState: projectStateInitialState,
     projectTitle: projectTitleInitialState,
+    fontsLoaded: fontsLoadedInitialState,
     restoreDeletion: restoreDeletionInitialState,
     targets: targetsInitialState,
     timeout: timeoutInitialState,
@@ -83,6 +85,19 @@ const initFullScreen = function (currentState) {
     );
 };
 
+const initEmbedded = function (currentState) {
+    return Object.assign(
+        {},
+        currentState,
+        {mode: {
+            showBranding: true,
+            isFullScreen: true,
+            isPlayerOnly: true,
+            hasEverEnteredEditor: false
+        }}
+    );
+};
+
 const initTutorialCard = function (currentState, deckId) {
     return Object.assign(
         {},
@@ -107,7 +122,19 @@ const initPreviewInfo = function (currentState) {
         currentState,
         {
             modals: {
-                previewInfo: true
+                previewInfo: true // this key must match `MODAL_PREVIEW_INFO` in modals.js
+            }
+        }
+    );
+};
+
+const initTelemetryModal = function (currentState) {
+    return Object.assign(
+        {},
+        currentState,
+        {
+            modals: {
+                telemetryModal: true // this key must match `MODAL_TELEMETRY` in modals.js
             }
         }
     );
@@ -133,6 +160,7 @@ const guiReducer = combineReducers({
     projectChanged: projectChangedReducer,
     projectState: projectStateReducer,
     projectTitle: projectTitleReducer,
+    fontsLoaded: fontsLoadedReducer,
     restoreDeletion: restoreDeletionReducer,
     targets: targetReducer,
     timeout: timeoutReducer,
@@ -145,8 +173,10 @@ export {
     guiReducer as default,
     guiInitialState,
     guiMiddleware,
+    initEmbedded,
     initFullScreen,
     initPlayer,
     initPreviewInfo,
+    initTelemetryModal,
     initTutorialCard
 };

@@ -81,6 +81,7 @@ const vmManagerHOC = function (WrappedComponent) {
                 isStarted,
                 onError: onErrorProp,
                 onLoadedProject: onLoadedProjectProp,
+                onSetProjectUnchanged,
                 projectData,
                 /* eslint-enable no-unused-vars */
                 isLoadingWithId: isLoadingWithIdProp,
@@ -106,6 +107,7 @@ const vmManagerHOC = function (WrappedComponent) {
         loadingState: PropTypes.oneOf(LoadingStates),
         onError: PropTypes.func,
         onLoadedProject: PropTypes.func,
+        onSetProjectUnchanged: PropTypes.func,
         projectData: PropTypes.oneOfType([PropTypes.object, PropTypes.string]),
         projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
         username: PropTypes.string,
@@ -115,6 +117,7 @@ const vmManagerHOC = function (WrappedComponent) {
     const mapStateToProps = state => {
         const loadingState = state.scratchGui.projectState.loadingState;
         return {
+            fontsLoaded: state.scratchGui.fontsLoaded,
             isLoadingWithId: getIsLoadingWithId(loadingState),
             projectData: state.scratchGui.projectState.projectData,
             projectId: state.scratchGui.projectState.projectId,
@@ -127,7 +130,7 @@ const vmManagerHOC = function (WrappedComponent) {
     const mapDispatchToProps = dispatch => ({
         onError: error => dispatch(projectError(error)),
         onLoadedProject: (loadingState, canSave) =>
-            dispatch(onLoadedProject(loadingState, canSave)),
+            dispatch(onLoadedProject(loadingState, canSave, true)),
         onSetProjectUnchanged: () => dispatch(setProjectUnchanged())
     });
 
