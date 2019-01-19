@@ -1,6 +1,10 @@
 import React from 'react';
 import {FormattedMessage} from 'react-intl';
 
+import edbotImage from './edbot.png';
+import edbotInsetImage from './edbot-small.svg';
+import dreamImage from './dream.png';
+import dreamInsetImage from './dream-small.svg';
 import musicImage from './music.png';
 import musicInsetImage from './music-small.svg';
 import penImage from './pen.png';
@@ -26,6 +30,36 @@ import wedoMenuImage from './peripheral-connection/wedo/wedo-small.svg';
 import wedoButtonImage from './peripheral-connection/wedo/wedo-button-illustration.svg';
 
 export default [
+    {
+        name: 'Edbot',
+        extensionId: 'edbot',
+        iconURL: edbotImage,
+        insetIconURL: edbotInsetImage,
+        description: (
+            <FormattedMessage
+                defaultMessage="Code your humanoid robot."
+                description="Description for the 'Edbot' extension"
+                id="gui.extension.edbot.description"
+            />
+        ),
+        featured: true,
+		helpLink: 'http://support.ed.bot'
+    },
+    {
+        name: 'Edbot Dream',
+        extensionId: 'dream',
+        iconURL: dreamImage,
+        insetIconURL: dreamInsetImage,
+        description: (
+            <FormattedMessage
+                defaultMessage="Build & code 20+ different robots."
+                description="Description for the 'Edbot Dream' extension"
+                id="gui.extension.dream.description"
+            />
+        ),
+        featured: true,
+		helpLink: 'http://support.ed.bot'
+    },
     {
         name: (
             <FormattedMessage
