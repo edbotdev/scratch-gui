@@ -5,6 +5,8 @@ import edbotImage from './edbot.png';
 import edbotInsetImage from './edbot-small.svg';
 import dreamImage from './dream.png';
 import dreamInsetImage from './dream-small.svg';
+import playImage from './play.png';
+import playInsetImage from './play-small.svg';
 import musicImage from './music.png';
 import musicInsetImage from './music-small.svg';
 import penImage from './pen.png';
@@ -55,6 +57,21 @@ export default [
                 defaultMessage="Build & code 20+ different robots."
                 description="Description for the 'Edbot Dream' extension"
                 id="gui.extension.dream.description"
+            />
+        ),
+        featured: true,
+		helpLink: 'http://support.ed.bot'
+    },
+    {
+        name: 'Edbot Play',
+        extensionId: 'play',
+        iconURL: playImage,
+        insetIconURL: playInsetImage,
+        description: (
+            <FormattedMessage
+                defaultMessage="Easy build & code 6 different robots."
+                description="Description for the 'Edbot Play' extension"
+                id="gui.extension.play.description"
             />
         ),
         featured: true,
