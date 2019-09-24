@@ -63,14 +63,14 @@ export default [
 		helpLink: 'http://support.ed.bot'
     },
     {
-        name: 'Edbot Play',
+        name: 'Edbot Play&Code',
         extensionId: 'play',
         iconURL: playImage,
         insetIconURL: playInsetImage,
         description: (
             <FormattedMessage
                 defaultMessage="Easy build & code 6 different robots."
-                description="Description for the 'Edbot Play' extension"
+                description="Description for the 'Edbot Play&Code' extension"
                 id="gui.extension.play.description"
             />
         ),
