@@ -7,6 +7,9 @@ import dreamImage from './dream.png';
 import dreamInsetImage from './dream-small.svg';
 import playImage from './play.png';
 import playInsetImage from './play-small.svg';
+import eev3Image from './eev3.png';
+import eev3InsetImage from './eev3-small.svg';
+
 import musicImage from './music.png';
 import musicInsetImage from './music-small.svg';
 import penImage from './pen.png';
@@ -72,6 +75,21 @@ export default [
                 defaultMessage="Easy build & code 6 different robots."
                 description="Description for the 'Edbot Play&Code' extension"
                 id="gui.extension.play.description"
+            />
+        ),
+        featured: true,
+		helpLink: 'http://support.ed.bot'
+    },
+    {
+        name: 'Edbot EV3',
+        extensionId: 'eev3',
+        iconURL: eev3Image,
+        insetIconURL: eev3InsetImage,
+        description: (
+            <FormattedMessage
+                defaultMessage="Full control of your EV3!"
+                description="Description for the 'Edbot EV3' extension"
+                id="gui.extension.eev3.description"
             />
         ),
         featured: true,
