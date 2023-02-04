@@ -36,14 +36,14 @@ import wedoButtonImage from './peripheral-connection/wedo/wedo-button-illustrati
 
 export default [
     {
-        name: 'Edbot',
+        name: 'Edbot Mini',
         extensionId: 'edbot',
         iconURL: edbotImage,
         insetIconURL: edbotInsetImage,
         description: (
             <FormattedMessage
                 defaultMessage="Code your humanoid robot."
-                description="Description for the 'Edbot' extension"
+                description="Description for the 'Edbot Mini' extension"
                 id="gui.extension.edbot.description"
             />
         ),
@@ -80,6 +80,7 @@ export default [
         featured: true,
 		helpLink: 'http://support.ed.bot'
     },
+	/*
     {
         name: 'Edbot EV3',
         extensionId: 'eev3',
@@ -95,6 +96,7 @@ export default [
         featured: true,
 		helpLink: 'http://support.ed.bot'
     },
+	*/
     {
         name: (
             <FormattedMessage
